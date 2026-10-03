@@ -25,4 +25,5 @@ jobs:
         with:
           name: browser-diagnostics
           path: .artifacts/*verification.json
+          include-hidden-files: true
           retention-days: 3
