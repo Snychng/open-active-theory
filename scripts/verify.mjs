@@ -11,6 +11,15 @@ const base = process.env.PREVIEW_URL || 'http://localhost:4199';
 await fs.mkdir(path.join(output, 'screenshots'), { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
 const report = { date: '2026-10-03', browser: browser.version(), cases: [], errors: [] };
+const probe = await browser.newPage();
+report.graphics = await probe.evaluate(() => {
+  const gl = document.createElement('canvas').getContext('webgl2');
+  if (!gl) return { webgl2: false };
+  const debug = gl.getExtension('WEBGL_debug_renderer_info');
+  return { webgl2: true, renderer: debug && gl.getParameter(debug.UNMASKED_RENDERER_WEBGL), vendor: debug && gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) };
+});
+console.log('浏览器图形上下文：', JSON.stringify(report.graphics));
+await probe.close();
 
 async function inspect(mobile) {
   const original = false;
@@ -32,7 +41,8 @@ async function inspect(mobile) {
   report.cases.push(item);
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => window.AppState && AppState.get('ViewController/visibleV') > .99 && AppState.get('FXScroll/initialized'), null, { timeout: 90000 });
+    await page.waitForFunction(() => location.pathname.endsWith('/unsupported.html') || window.AppState && AppState.get('ViewController/visibleV') > .99 && AppState.get('FXScroll/initialized'), null, { timeout: 90000 });
+    assert.ok(!page.url().endsWith('/unsupported.html'), `当前浏览器被原站 GPU 检测拒绝：${JSON.stringify(report.graphics)}`);
     await page.evaluate(() => CMSData.workPages.refresh(CMS_DATA.projects.slice(0, 14)));
     await page.waitForTimeout(5500);
     async function shot(label) {
@@ -104,6 +114,18 @@ async function inspect(mobile) {
     assert.equal(errors.length, 0, JSON.stringify(errors)); assert.equal(graphicsErrors.length, 0, JSON.stringify(graphicsErrors)); assert.equal(external.length, 0, JSON.stringify(external));
     assert.ok(missing.every(url => /\/assets\/images\/(lab\.gif|pbr\/damaged_road_normal\.jpg)$/.test(url)), JSON.stringify(missing));
     item.passed = true;
+  } catch (error) {
+    item.failure = error.message;
+    item.loadState = await page.evaluate(() => ({
+      url: location.href,
+      title: document.title,
+      ready: document.readyState,
+      canvasCount: document.querySelectorAll('canvas').length,
+      visible: window.AppState?.get('ViewController/visibleV'),
+      initialized: window.AppState?.get('FXScroll/initialized')
+    })).catch(() => null);
+    console.error(JSON.stringify(item));
+    throw error;
   } finally { await context.close(); await fs.writeFile(path.join(output, 'runtime-verification.json'), JSON.stringify(report, null, 2)); }
 }
 try {

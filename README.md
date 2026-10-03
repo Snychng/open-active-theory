@@ -37,7 +37,7 @@ npm run verify:music
 npm run verify:media
 ```
 
-检查记录与截图写入 `.artifacts/`，不提交 Git。CI 在 Ubuntu、Node.js 22 和 Playwright Chromium 上执行 `npm test`。工程检查不代替用户视觉验收、真实手机操作或扬声器输出确认。
+检查记录与截图写入 `.artifacts/`，不提交 Git。CI 在 Ubuntu、Node.js 22 和 Playwright Chromium 上执行 `npm test`，通过 Xvfb 与 Mesa 软件 OpenGL 提供 WebGL 上下文；原站会拒绝 SwiftShader，保留此检测。失败时保存浏览器诊断报告。工程检查不代替用户视觉验收、真实手机操作或扬声器输出确认。
 
 ## 技术与源码
 
