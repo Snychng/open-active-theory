@@ -99,9 +99,14 @@ async function inspect(mobile) {
     await page.locator('a[aria-label="Contact"]').focus(); await page.keyboard.press('Enter');
     await page.waitForFunction(() => AppState.get('ViewController/contact')); await page.waitForTimeout(500); await shot('contact-opening');
     await page.waitForTimeout(1700); await shot('contact'); item.interactions.contactOpens = true;
+    // 原站聊天面板隐藏有 3 秒过渡；等完成后再关闭联系人，避免测试打断它。
+    await page.locator('.ChatDOM .wrapper').waitFor({ state: 'hidden' });
     await page.keyboard.press('Escape'); await page.waitForFunction(() => !AppState.get('ViewController/contact')); item.interactions.escapeClosesContact = true;
     if (!original) {
-      await page.waitForTimeout(1300);
+      // 手机的聊天入口仅在 Work 中段显示；先进入真实可操作状态。
+      await page.evaluate(() => { const s = AppState.get('ViewController/scroll'), w = s.views[2]; s.scrollTo(w.start + (w.end - w.start) * .35, 0); });
+      await page.locator('.ChatDOM a[title="-> motion"]').waitFor({ state: 'visible' });
+      await page.waitForFunction(() => AppState.get('ViewController/uniforms')?.uChatOpen?.value > .99);
       await page.locator('.ChatDOM a[title="-> motion"]').click(); await page.waitForTimeout(2800);
       const tags = await page.evaluate(() => CMSData.workPages.toJSON().map(p => p.tags));
       assert.ok(tags.length && tags.every(tag => tag.includes('motion'))); item.interactions.filter = { tag: 'motion', count: tags.length };
